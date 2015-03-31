@@ -1,0 +1,116 @@
+#!/usr/bin/env python
+# -*- coding:utf-8 -*-
+
+# Copyright 2015 Nicolas Wyss
+#
+# This file is part of BIRDY.
+#
+# BIRDY is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# BIRDY is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with BIRDY.  If not, see <http://www.gnu.org/licenses/>.
+
+import argparse, sys, os, logging
+from modules import settings
+from modules import message
+from modules import timelaps
+from modules import probe
+
+# Informations on the product
+product_name = "birdy"
+product_description = 'birdy : Send twett from command line'
+product_version = '0.1'
+
+# Logger
+logger = logging.getLogger("birdy")
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+handler = logging.FileHandler(settings.LOG)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+def parse_arguments():
+
+    # Create the top-level parser
+    parser = argparse.ArgumentParser(description=product_description, prog=product_name)
+    parser.add_argument('--version', action='version', version='%(prog)s ' + product_version)
+    parser.add_argument('-v', '--verbose', action='store_true', help='verbose')
+
+    # Create the low-level parser
+    subparser = parser.add_subparsers(title='commands', dest="command_name" )
+
+    # Create the parser for the "message" command
+    parser_message = subparser.add_parser('message', help='Send message')
+    parser_message.add_argument('text', action='store', nargs='?', help='content of the message')
+    parser_message.add_argument('--picture', action='store', type=argparse.FileType('r'), help='add a picture')
+
+    # Create the parser for the "timelaps" command
+    parser_timelaps = subparser.add_parser('timelaps', help='Daemon')
+    group_parser_timelaps = parser_timelaps.add_mutually_exclusive_group(required=True)
+    group_parser_timelaps.add_argument('--start', action='store_true', help='start time laps daemon')
+    group_parser_timelaps.add_argument('--stop', action='store_true', help='stop time laps daemon')
+    group_parser_timelaps.add_argument('--restart', action='store_true', help='restart time laps daemon')
+
+    # Create the parser for the "probe" command
+    parser_probe = subparser.add_parser('probe', help='Daemon')
+    group_parser_probe = parser_probe.add_mutually_exclusive_group(required=True)
+    group_parser_probe.add_argument('--start', action='store_true', help='start probe daemon')
+    group_parser_probe.add_argument('--stop', action='store_true', help='stop probe daemon')
+    group_parser_probe.add_argument('--restart', action='store_true', help='restart probe daemon')
+
+    # Create the parser for the "help" command
+    parser_help = subparser.add_parser('help', help='help for a command')
+
+    return parser
+
+# Get parser
+parser = parse_arguments()
+
+# Get options from command line
+args = parser.parse_args()
+
+# Command : message
+if args.command_name == 'message':
+
+    # Send a message
+    message.send(args.text, args.picture)
+
+# Command : timelaps
+elif args.command_name == 'timelaps':
+
+    daemon = timelaps.TimeLapsDaemon(settings.PID, logger=logger, timeinterval=settings.timeinterval)
+
+    if args.start:
+        daemon.start()
+
+    elif args.stop:
+        daemon.stop()
+
+    elif args.restart:
+        daemon.restart()
+
+# Command : probe
+elif args.command_name == 'probe':
+
+    daemon = probe.ProbeDaemon(settings.PID, logger=logger)
+
+    if args.start:
+        daemon.start()
+
+    elif args.stop:
+        daemon.stop()
+
+    elif args.restart:
+        daemon.restart()
+
+# No command : help
+else:
+    parser.print_help()
